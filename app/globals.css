@@ -1,0 +1,22 @@
+:root {
+  --ink: #17151f;
+  --paper: #efedf7;
+  --paper-2: #e5e2ef;
+  --violet: #7447f5;
+  --violet-dark: #5732d2;
+  --lime: #d5fb78;
+  --sky: #8de3ed;
+  --pink: #f2a9c7;
+  --line: rgba(23, 21, 31, .18);
+  --muted: #757180;
+  --sans: 'Avenir Next', 'Segoe UI', Helvetica, Arial, sans-serif;
+  --mono: 'SFMono-Regular', 'Cascadia Code', Consolas, 'Liberation Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-kerning: normal; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+button, input, textarea, select { font: inherit; }
+button { color: inherit; }
+::selection { background: var(--violet); color: white; }
