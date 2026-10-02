@@ -1,0 +1,17 @@
+diff --git a/src/GasTarget.sol b/src/GasTarget.sol
+--- a/src/GasTarget.sol
++++ b/src/GasTarget.sol
+@@ -4,8 +4,11 @@
+ contract GasTarget {
+     function sum(uint256 n) external pure returns (uint256 total) {
+         require(n <= 1000, "n too large");
+-        for (uint256 i = 0; i < n; i++) {
+-            total += i;
++        for (uint256 i = 0; i < n; ) {
++            unchecked {
++                total += i;
++                ++i;
++            }
+         }
+     }
+ }
