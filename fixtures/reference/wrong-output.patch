@@ -1,0 +1,11 @@
+--- a/src/GasTarget.sol
++++ b/src/GasTarget.sol
+@@ -7,3 +7,6 @@
+-        for (uint256 i = 0; i < n; i++) {
+-            total += i;
++        for (uint256 i = 0; i < n; ) {
++            unchecked {
++                total += 1;
++                ++i;
++            }
+         }
