@@ -1,0 +1,5 @@
+--- a/src/GasTarget.sol
++++ b/src/GasTarget.sol
+@@ -8 +8 @@
+-            total += i;
++            total += i; // no actual gas improvement
