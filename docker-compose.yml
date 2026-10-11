@@ -1,0 +1,123 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vector}
+      POSTGRES_USER: ${POSTGRES_USER:-vector}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - vector-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vector} -d ${POSTGRES_DB:-vector}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [vector]
+
+  migrate:
+    build:
+      context: .
+      args: &vector-build-args
+        NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: ${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID:?NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is required}
+        NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL: ${NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL:?NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL is required}
+        NEXT_PUBLIC_BASE_SEPOLIA_ESCROW_ADDRESS: ${NEXT_PUBLIC_BASE_SEPOLIA_ESCROW_ADDRESS:?NEXT_PUBLIC_BASE_SEPOLIA_ESCROW_ADDRESS is required}
+        NEXT_PUBLIC_BASE_SEPOLIA_TOKEN_ADDRESS: ${NEXT_PUBLIC_BASE_SEPOLIA_TOKEN_ADDRESS:?NEXT_PUBLIC_BASE_SEPOLIA_TOKEN_ADDRESS is required}
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vector}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vector}
+    command: ["npm", "run", "migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [vector]
+
+  web:
+    build:
+      context: .
+      args: *vector-build-args
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      VECTOR_APP_ORIGIN: ${VECTOR_APP_ORIGIN:?VECTOR_APP_ORIGIN is required}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vector}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vector}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      WORKER_AUTH_SECRET: ${WORKER_AUTH_SECRET:?WORKER_AUTH_SECRET is required}
+      BASE_SEPOLIA_RPC_URL: ${BASE_SEPOLIA_RPC_URL:?BASE_SEPOLIA_RPC_URL is required}
+      BASE_SEPOLIA_ESCROW_ADDRESS: ${BASE_SEPOLIA_ESCROW_ADDRESS:?BASE_SEPOLIA_ESCROW_ADDRESS is required}
+      BASE_SEPOLIA_TOKEN_ADDRESS: ${BASE_SEPOLIA_TOKEN_ADDRESS:?BASE_SEPOLIA_TOKEN_ADDRESS is required}
+      BASE_SEPOLIA_START_BLOCK: ${BASE_SEPOLIA_START_BLOCK:?BASE_SEPOLIA_START_BLOCK is required}
+      BASE_SEPOLIA_CONFIRMATIONS: ${BASE_SEPOLIA_CONFIRMATIONS:-3}
+      BASE_SEPOLIA_REORG_OVERLAP_BLOCKS: ${BASE_SEPOLIA_REORG_OVERLAP_BLOCKS:-12}
+      WALLETCONNECT_PROJECT_ID: ${WALLETCONNECT_PROJECT_ID:?WALLETCONNECT_PROJECT_ID is required}
+      EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM is required}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:?EMAIL_PROVIDER is required}
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST is required}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:?SMTP_USER is required}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?SMTP_PASSWORD is required}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    expose: ["3000"]
+    networks: [vector]
+
+  worker:
+    build:
+      context: .
+      args: *vector-build-args
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vector}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vector}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      WORKER_AUTH_SECRET: ${WORKER_AUTH_SECRET:?WORKER_AUTH_SECRET is required}
+      BASE_SEPOLIA_RPC_URL: ${BASE_SEPOLIA_RPC_URL:?BASE_SEPOLIA_RPC_URL is required}
+      BASE_SEPOLIA_ESCROW_ADDRESS: ${BASE_SEPOLIA_ESCROW_ADDRESS:?BASE_SEPOLIA_ESCROW_ADDRESS is required}
+      BASE_SEPOLIA_TOKEN_ADDRESS: ${BASE_SEPOLIA_TOKEN_ADDRESS:?BASE_SEPOLIA_TOKEN_ADDRESS is required}
+      BASE_SEPOLIA_START_BLOCK: ${BASE_SEPOLIA_START_BLOCK:?BASE_SEPOLIA_START_BLOCK is required}
+      BASE_SEPOLIA_CONFIRMATIONS: ${BASE_SEPOLIA_CONFIRMATIONS:-3}
+      BASE_SEPOLIA_REORG_OVERLAP_BLOCKS: ${BASE_SEPOLIA_REORG_OVERLAP_BLOCKS:-12}
+      VERIFIER_IMAGE: ${VERIFIER_IMAGE:?VERIFIER_IMAGE must be a pinned verifier image digest}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:?EMAIL_PROVIDER is required}
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST is required}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:?SMTP_USER is required}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?SMTP_PASSWORD is required}
+      EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM is required}
+    command: ["npm", "run", "worker"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - ${DOCKER_GID:-999}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    networks: [vector]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      VECTOR_DOMAIN: ${VECTOR_DOMAIN:?VECTOR_DOMAIN is required}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - vector-caddy-data:/data
+      - vector-caddy-config:/config
+    depends_on: [web]
+    networks: [vector]
+
+volumes:
+  vector-postgres:
+  vector-caddy-data:
+  vector-caddy-config:
+
+networks:
+  vector:
